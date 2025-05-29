@@ -3,120 +3,208 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Firebase File Manager with Delete</title>
+  <title>My File Manager</title>
   <style>
+    /* General reset */
+    * {
+      box-sizing: border-box;
+    }
+
     body {
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      max-width: 700px;
-      margin: 20px auto;
-      padding: 10px;
-      background: #e7f5fe;
+      background: linear-gradient(135deg, #1f4037, #99f2c8);
+      height: 100vh;
+      margin: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      color: #333;
+    }
+
+    .container {
+      background: #fff;
+      width: 380px;
+      padding: 2rem;
+      border-radius: 12px;
+      box-shadow: 0 12px 24px rgba(0,0,0,0.15);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      animation: fadeIn 0.6s ease forwards;
+    }
+
+    @keyframes fadeIn {
+      from {opacity: 0; transform: translateY(-15px);}
+      to {opacity: 1; transform: translateY(0);}
+    }
+
+    h2 {
+      margin-bottom: 1.5rem;
       color: #1f4037;
+      font-weight: 700;
+      letter-spacing: 1.1px;
+      user-select: none;
     }
-    h1 {
-      text-align: center;
-      color: #14532d;
-    }
-    input, select, button {
-      padding: 8px;
-      margin: 5px 0;
-      border-radius: 5px;
-      border: 1px solid #ccc;
+
+    input[type="password"],
+    input[type="text"],
+    select,
+    input[type="file"] {
+      width: 100%;
+      padding: 0.55rem 0.8rem;
+      margin-bottom: 1rem;
       font-size: 1rem;
+      border: 1.8px solid #ccc;
+      border-radius: 10px;
+      transition: border-color 0.25s ease;
     }
+
+    input[type="password"]:focus,
+    input[type="text"]:focus,
+    select:focus,
+    input[type="file"]:focus {
+      border-color: #1f4037;
+      outline: none;
+      box-shadow: 0 0 8px #7ad3a6;
+    }
+
     button {
+      width: 100%;
+      padding: 0.65rem 0;
       background: #1f4037;
       color: white;
-      cursor: pointer;
       border: none;
+      border-radius: 12px;
+      font-size: 1.1rem;
+      font-weight: 600;
+      cursor: pointer;
       transition: background 0.3s ease;
+      user-select: none;
     }
-    button:hover {
+
+    button:hover:not(:disabled) {
       background: #14532d;
     }
-    .folder, .file {
-      background: white;
-      margin: 10px 0;
-      padding: 10px;
-      border-radius: 10px;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+
+    button:disabled {
+      background: #999;
+      cursor: not-allowed;
     }
-    .folder > strong {
+
+    .error {
+      color: #e74c3c;
+      margin-top: -0.5rem;
+      margin-bottom: 1rem;
+      font-size: 0.9rem;
+      display: none;
+      user-select: none;
+    }
+
+    /* Dashboard styles */
+    .dashboard {
+      width: 100%;
+    }
+
+    .folder-list {
+      margin-top: 1.3rem;
+      max-height: 280px;
+      overflow-y: auto;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 1rem;
+      background: #f9fafb;
+    }
+
+    .folder {
+      margin-bottom: 1rem;
+      border-bottom: 1px solid #eee;
+      padding-bottom: 0.5rem;
+    }
+
+    .folder strong {
+      color: #1f4037;
       font-size: 1.1rem;
+      user-select: none;
     }
-    .files {
-      margin-top: 8px;
-      padding-left: 15px;
-    }
-    .files div {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin: 4px 0;
-    }
-    a.file-link {
-      color: #14532d;
+
+    .file-list a {
+      display: block;
+      color: #1976d2;
+      font-size: 0.9rem;
       text-decoration: none;
-      cursor: pointer;
-      max-width: 80%;
-      overflow-wrap: break-word;
+      margin-top: 0.3rem;
+      user-select: text;
     }
-    a.file-link:hover {
+
+    .file-list a:hover {
       text-decoration: underline;
     }
-    .delete-btn {
-      background: transparent;
-      border: none;
-      color: #c92a2a;
-      cursor: pointer;
-      font-weight: bold;
-      font-size: 0.9rem;
-      padding: 0 6px;
-      transition: color 0.2s ease;
-    }
-    .delete-btn:hover {
-      color: #820000;
-    }
-    #uploadSection {
-      margin-top: 20px;
-      padding: 15px;
-      background: white;
-      border-radius: 12px;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-    }
-    #progressBar {
+
+    /* Upload progress */
+    #uploadProgress {
       width: 100%;
-      height: 20px;
-      margin-top: 8px;
+      height: 8px;
+      border-radius: 8px;
+      background: #eee;
+      overflow: hidden;
+      margin-bottom: 1rem;
+      display: none;
+    }
+
+    #uploadProgressBar {
+      height: 100%;
+      width: 0%;
+      background: #1f4037;
+      transition: width 0.3s ease;
+    }
+
+    #uploadPercent {
+      text-align: right;
+      font-size: 0.85rem;
+      color: #1f4037;
+      margin-bottom: 1rem;
+      user-select: none;
     }
   </style>
 </head>
 <body>
-  <h1>Firebase File Manager</h1>
+  <div class="container">
+    <div class="login-section">
+      <h2>🔐 Login</h2>
+      <input type="password" id="passwordInput" placeholder="Enter password" autocomplete="off" />
+      <button id="loginBtn" onclick="login()">Enter</button>
+      <p id="loginError" class="error">Incorrect password.</p>
+    </div>
 
-  <section id="createFolderSection">
-    <input type="text" id="folderNameInput" placeholder="New folder name" />
-    <button id="createFolderBtn">Create Folder</button>
-  </section>
+    <div class="dashboard" style="display:none;">
+      <h2>📁 My File Manager</h2>
 
-  <section id="uploadSection">
-    <select id="folderSelect">
-      <option value="" disabled selected>Select folder to upload</option>
-    </select><br/>
-    <input type="file" id="fileInput" />
-    <button id="uploadBtn">Upload File</button>
-    <progress id="progressBar" value="0" max="100" style="display:none;"></progress>
-  </section>
+      <div>
+        <input type="text" id="folderName" placeholder="New folder name" />
+        <button id="createFolderBtn" onclick="createFolder()">Create Folder</button>
+      </div>
 
-  <section id="foldersList"></section>
+      <div style="margin-top:1rem;">
+        <select id="folderSelect"></select>
+        <input type="file" id="fileInput" />
+        <button id="uploadBtn" onclick="uploadFile()">Upload File</button>
+      </div>
 
-  <!-- Firebase SDK -->
-  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-storage-compat.js"></script>
+      <div id="uploadProgress">
+        <div id="uploadProgressBar"></div>
+      </div>
+      <div id="uploadPercent"></div>
 
-  <script>
-    // Your Firebase configuration
+      <div class="folder-list" id="folderList"></div>
+    </div>
+  </div>
+
+  <!-- Firebase modular SDK -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getDatabase, ref as dbRef, set, get, child } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+    import { getStorage, ref as storageRef, uploadBytesResumable, listAll, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
+
     const firebaseConfig = {
       apiKey: "AIzaSyCy9CKJ6CELheBhw7Gs0BgsE1E0FsoYdgU",
       authDomain: "project-955237504610034331.firebaseapp.com",
@@ -124,186 +212,157 @@
       storageBucket: "project-955237504610034331.appspot.com",
       messagingSenderId: "76212939677",
       appId: "1:76212939677:web:ef498bc1e4e480ab6e5d74",
-      measurementId: "G-WXBEP1LXTX"
+      measurementId: "G-WXBEP1LXTX",
+      databaseURL: "https://project-955237504610034331-default-rtdb.firebaseio.com"
     };
 
-    // Initialize Firebase
-    firebase.initializeApp(firebaseConfig);
-    const database = firebase.database();
-    const storage = firebase.storage();
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+    const storage = getStorage(app);
 
-    // Elements
-    const folderNameInput = document.getElementById("folderNameInput");
+    const password = "244466666";
+
+    const loginSection = document.querySelector(".login-section");
+    const dashboard = document.querySelector(".dashboard");
+    const loginError = document.getElementById("loginError");
     const createFolderBtn = document.getElementById("createFolderBtn");
-    const folderSelect = document.getElementById("folderSelect");
-    const fileInput = document.getElementById("fileInput");
     const uploadBtn = document.getElementById("uploadBtn");
-    const progressBar = document.getElementById("progressBar");
-    const foldersList = document.getElementById("foldersList");
+    const uploadProgress = document.getElementById("uploadProgress");
+    const uploadProgressBar = document.getElementById("uploadProgressBar");
+    const uploadPercent = document.getElementById("uploadPercent");
 
-    // Create Folder
-    createFolderBtn.onclick = () => {
-      const folderName = folderNameInput.value.trim();
+    window.login = function() {
+      const input = document.getElementById("passwordInput").value;
+      if (input === password) {
+        loginError.style.display = "none";
+        loginSection.style.display = "none";
+        dashboard.style.display = "block";
+        loadFolders();
+      } else {
+        loginError.style.display = "block";
+      }
+    }
+
+    window.createFolder = function() {
+      const folderName = document.getElementById("folderName").value.trim();
       if (!folderName) {
         alert("Please enter a folder name");
         return;
       }
-      // Save folder in Realtime DB
-      database.ref('folders/' + folderName).set(true)
-        .then(() => {
-          folderNameInput.value = "";
-          alert("Folder created: " + folderName);
-          listFolders();
-        })
-        .catch(err => alert("Error creating folder: " + err.message));
-    };
+      createFolderBtn.disabled = true;
 
-    // Upload File
-    uploadBtn.onclick = () => {
-      const folderName = folderSelect.value;
-      const file = fileInput.files[0];
-      if (!folderName) {
-        alert("Please select a folder first");
-        return;
+      set(dbRef(db, "folders/" + folderName), { createdAt: Date.now() })
+        .then(() => {
+          document.getElementById("folderName").value = "";
+          loadFolders();
+        })
+        .finally(() => createFolderBtn.disabled = false);
+    }
+
+    async function loadFolders() {
+      const folderSelect = document.getElementById("folderSelect");
+      const folderList = document.getElementById("folderList");
+      folderSelect.innerHTML = "";
+      folderList.innerHTML = "";
+
+      try {
+        const snapshot = await get(dbRef(db, "folders"));
+        if (!snapshot.exists()) {
+          folderList.innerHTML = "<em>No folders created yet.</em>";
+          return;
+        }
+        snapshot.forEach((childSnapshot) => {
+          const folderName = childSnapshot.key;
+
+          const option = document.createElement("option");
+          option.value = folderName;
+          option.textContent = folderName;
+          folderSelect.appendChild(option);
+
+          const folderDiv = document.createElement("div");
+          folderDiv.className = "folder";
+          folderDiv.innerHTML = `<strong>${folderName}</strong><div class="file-list" id="files-${folderName}">Loading files...</div>`;
+          folderList.appendChild(folderDiv);
+
+          listFiles(folderName);
+        });
+      } catch (e) {
+        folderList.innerHTML = "<em>Error loading folders.</em>";
       }
+    }
+
+    window.uploadFile = function() {
+      const fileInput = document.getElementById("fileInput");
+      const file = fileInput.files[0];
+      const folder = document.getElementById("folderSelect").value;
+
       if (!file) {
         alert("Please select a file to upload");
         return;
       }
-      uploadBtn.disabled = true;
-      progressBar.style.display = "block";
-      progressBar.value = 0;
+      if (!folder) {
+        alert("Please select a folder");
+        return;
+      }
 
-      const storageRef = storage.ref(folderName + "/" + file.name);
-      const uploadTask = storageRef.put(file);
+      uploadBtn.disabled = true;
+      createFolderBtn.disabled = true;
+
+      const fileRef = storageRef(storage, `${folder}/${file.name}`);
+      const uploadTask = uploadBytesResumable(fileRef, file);
+
+      uploadProgress.style.display = "block";
+      uploadProgressBar.style.width = "0%";
+      uploadPercent.textContent = "0%";
 
       uploadTask.on('state_changed', 
-        snapshot => {
+        (snapshot) => {
           const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-          progressBar.value = progress;
+          uploadProgressBar.style.width = progress + '%';
+          uploadPercent.textContent = Math.floor(progress) + '%';
         }, 
-        error => {
+        (error) => {
           alert("Upload failed: " + error.message);
+          uploadProgress.style.display = "none";
           uploadBtn.disabled = false;
-          progressBar.style.display = "none";
+          createFolderBtn.disabled = false;
         }, 
         () => {
-          alert("File uploaded!");
-          fileInput.value = "";
+          alert("File uploaded successfully!");
+          uploadProgress.style.display = "none";
+          uploadPercent.textContent = "";
           uploadBtn.disabled = false;
-          progressBar.style.display = "none";
-          listFiles(folderName);
-        });
-    };
+          createFolderBtn.disabled = false;
+          fileInput.value = "";
+          listFiles(folder);
+        }
+      );
+    }
 
-    // List folders
-    function listFolders() {
-      folderSelect.innerHTML = '<option value="" disabled selected>Select folder to upload</option>';
-      foldersList.innerHTML = "";
-      database.ref('folders').once('value').then(snapshot => {
-        const folders = snapshot.val();
-        if (!folders) {
-          folderSelect.innerHTML += '<option disabled>No folders yet</option>';
-          foldersList.innerHTML = "<em>No folders yet.</em>";
+    async function listFiles(folder) {
+      const filesDiv = document.getElementById(`files-${folder}`);
+      const folderStorageRef = storageRef(storage, folder);
+
+      try {
+        const res = await listAll(folderStorageRef);
+        filesDiv.innerHTML = "";
+        if (res.items.length === 0) {
+          filesDiv.innerHTML = "<em>No files yet.</em>";
           return;
         }
-        Object.keys(folders).forEach(folder => {
-          // Add to select
-          const option = document.createElement("option");
-          option.value = folder;
-          option.textContent = folder;
-          folderSelect.appendChild(option);
 
-          // Show folder with delete button
-          const folderDiv = document.createElement("div");
-          folderDiv.className = "folder";
-          folderDiv.innerHTML = `
-            <strong>${folder}</strong>
-            <button class="delete-btn" onclick="deleteFolder('${folder}')">Delete Folder</button>
-            <div id="files-${folder}" class="files"><em>Loading files...</em></div>
-          `;
-          foldersList.appendChild(folderDiv);
-
-          // List files inside this folder
-          listFiles(folder);
+        res.items.forEach(async (itemRef) => {
+          const url = await getDownloadURL(itemRef);
+          const link = document.createElement("a");
+          link.href = url;
+          link.textContent = itemRef.name;
+          link.target = "_blank";
+          filesDiv.appendChild(link);
         });
-      });
+      } catch (e) {
+        filesDiv.innerHTML = "<em>Error loading files.</em>";
+      }
     }
-
-    // List files in folder
-    function listFiles(folder) {
-      const filesDiv = document.getElementById(`files-${folder}`);
-      filesDiv.innerHTML = ""; // clear previous
-
-      storage.ref(folder).listAll()
-        .then(res => {
-          if (res.items.length === 0) {
-            filesDiv.innerHTML = "<em>No files yet.</em>";
-            return;
-          }
-          res.items.forEach(itemRef => {
-            const fileName = itemRef.name;
-
-            const fileLink = document.createElement("a");
-            fileLink.textContent = fileName;
-            fileLink.href = "#";
-            fileLink.className = "file-link";
-            fileLink.onclick = (e) => {
-              e.preventDefault();
-              itemRef.getDownloadURL().then(url => {
-                window.open(url, "_blank");
-              });
-            };
-
-            const deleteBtn = document.createElement("button");
-            deleteBtn.textContent = "Delete";
-            deleteBtn.className = "delete-btn";
-            deleteBtn.onclick = () => deleteFile(folder, fileName);
-
-            const fileItem = document.createElement("div");
-            fileItem.className = "file";
-            fileItem.appendChild(fileLink);
-            fileItem.appendChild(deleteBtn);
-
-            filesDiv.appendChild(fileItem);
-          });
-        })
-        .catch(() => {
-          filesDiv.innerHTML = "<em>Error loading files.</em>";
-        });
-    }
-
-    // Delete folder and all files inside
-    function deleteFolder(folderName) {
-      if (!confirm(`Delete folder "${folderName}" and ALL its files? This action CANNOT be undone.`)) return;
-
-      const folderRef = storage.ref(folderName);
-      folderRef.listAll()
-        .then(res => {
-          const deletePromises = res.items.map(itemRef => itemRef.delete());
-          return Promise.all(deletePromises);
-        })
-        .then(() => database.ref('folders/' + folderName).remove())
-        .then(() => {
-          alert(`Folder "${folderName}" and all files deleted.`);
-          listFolders();
-        })
-        .catch(err => alert("Error deleting folder: " + err.message));
-    }
-
-    // Delete single file
-    function deleteFile(folderName, fileName) {
-      if (!confirm(`Delete file "${fileName}" from folder "${folderName}"?`)) return;
-
-      storage.ref(folderName + "/" + fileName).delete()
-        .then(() => {
-          alert(`File "${fileName}" deleted.`);
-          listFiles(folderName);
-        })
-        .catch(err => alert("Error deleting file: " + err.message));
-    }
-
-    window.onload = listFolders;
   </script>
 </body>
 </html>
