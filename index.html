@@ -9,59 +9,165 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: #f4f7f9;
-      margin: 0;
-      padding: 2rem;
-    }
-
-    .container {
-      max-width: 700px;
-      margin: auto;
-      background: white;
-      padding: 1.5rem;
-      border-radius: 8px;
-      box-shadow: 0 0 10px rgba(0,0,0,0.1);
-    }
-
-    h2 {
-      margin-top: 0;
-    }
-
-    .login-section, .dashboard {
-      display: none;
-    }
-
-    input, button, select {
-      margin: 0.4rem 0;
-      padding: 0.5rem;
-      font-size: 1rem;
-      width: 100%;
+    /* General reset */
+    * {
       box-sizing: border-box;
     }
 
-    .folder-list {
-      margin-top: 1rem;
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #1f4037, #99f2c8);
+      height: 100vh;
+      margin: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      color: #333;
     }
 
-    .file-list {
-      margin-top: 0.5rem;
+    .container {
+      background: #fff;
+      width: 380px;
+      padding: 2rem;
+      border-radius: 12px;
+      box-shadow: 0 12px 24px rgba(0,0,0,0.15);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      animation: fadeIn 0.6s ease forwards;
+    }
+
+    @keyframes fadeIn {
+      from {opacity: 0; transform: translateY(-15px);}
+      to {opacity: 1; transform: translateY(0);}
+    }
+
+    h2 {
+      margin-bottom: 1.5rem;
+      color: #1f4037;
+      font-weight: 700;
+      letter-spacing: 1.1px;
+      user-select: none;
+    }
+
+    input[type="password"],
+    input[type="text"],
+    select,
+    input[type="file"] {
+      width: 100%;
+      padding: 0.55rem 0.8rem;
+      margin-bottom: 1rem;
+      font-size: 1rem;
+      border: 1.8px solid #ccc;
+      border-radius: 10px;
+      transition: border-color 0.25s ease;
+    }
+
+    input[type="password"]:focus,
+    input[type="text"]:focus,
+    select:focus,
+    input[type="file"]:focus {
+      border-color: #1f4037;
+      outline: none;
+      box-shadow: 0 0 8px #7ad3a6;
+    }
+
+    button {
+      width: 100%;
+      padding: 0.65rem 0;
+      background: #1f4037;
+      color: white;
+      border: none;
+      border-radius: 12px;
+      font-size: 1.1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.3s ease;
+      user-select: none;
+    }
+
+    button:hover:not(:disabled) {
+      background: #14532d;
+    }
+
+    button:disabled {
+      background: #999;
+      cursor: not-allowed;
+    }
+
+    .error {
+      color: #e74c3c;
+      margin-top: -0.5rem;
+      margin-bottom: 1rem;
       font-size: 0.9rem;
+      display: none;
+      user-select: none;
+    }
+
+    /* Dashboard styles */
+    .dashboard {
+      width: 100%;
+    }
+
+    .folder-list {
+      margin-top: 1.3rem;
+      max-height: 280px;
+      overflow-y: auto;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 1rem;
+      background: #f9fafb;
     }
 
     .folder {
       margin-bottom: 1rem;
-      border-bottom: 1px solid #ccc;
+      border-bottom: 1px solid #eee;
+      padding-bottom: 0.5rem;
     }
 
-    a {
-      color: #007bff;
+    .folder strong {
+      color: #1f4037;
+      font-size: 1.1rem;
+      user-select: none;
+    }
+
+    .file-list a {
+      display: block;
+      color: #1976d2;
+      font-size: 0.9rem;
       text-decoration: none;
+      margin-top: 0.3rem;
+      user-select: text;
     }
 
-    a:hover {
+    .file-list a:hover {
       text-decoration: underline;
+    }
+
+    /* Upload progress */
+    #uploadProgress {
+      width: 100%;
+      height: 8px;
+      border-radius: 8px;
+      background: #eee;
+      overflow: hidden;
+      margin-bottom: 1rem;
+      display: none;
+    }
+
+    #uploadProgressBar {
+      height: 100%;
+      width: 0%;
+      background: #1f4037;
+      transition: width 0.3s ease;
+    }
+
+    #uploadPercent {
+      text-align: right;
+      font-size: 0.85rem;
+      color: #1f4037;
+      margin-bottom: 1rem;
+      user-select: none;
     }
   </style>
 </head>
@@ -69,24 +175,29 @@
   <div class="container">
     <div class="login-section">
       <h2>🔐 Login</h2>
-      <input type="password" id="passwordInput" placeholder="Enter password" />
-      <button onclick="login()">Enter</button>
-      <p id="loginError" style="color:red; display:none;">Incorrect password.</p>
+      <input type="password" id="passwordInput" placeholder="Enter password" autocomplete="off" />
+      <button id="loginBtn" onclick="login()">Enter</button>
+      <p id="loginError" class="error">Incorrect password.</p>
     </div>
 
-    <div class="dashboard">
+    <div class="dashboard" style="display:none;">
       <h2>📁 My File Manager</h2>
 
       <div>
         <input type="text" id="folderName" placeholder="New folder name" />
-        <button onclick="createFolder()">Create Folder</button>
+        <button id="createFolderBtn" onclick="createFolder()">Create Folder</button>
       </div>
 
-      <div>
+      <div style="margin-top:1rem;">
         <select id="folderSelect"></select>
         <input type="file" id="fileInput" />
-        <button onclick="uploadFile()">Upload File</button>
+        <button id="uploadBtn" onclick="uploadFile()">Upload File</button>
       </div>
+
+      <div id="uploadProgress">
+        <div id="uploadProgressBar"></div>
+      </div>
+      <div id="uploadPercent"></div>
 
       <div class="folder-list" id="folderList"></div>
     </div>
@@ -112,14 +223,26 @@
 
     const password = "244466666";
 
+    // Elements
+    const loginSection = document.querySelector(".login-section");
+    const dashboard = document.querySelector(".dashboard");
+    const loginError = document.getElementById("loginError");
+    const loginBtn = document.getElementById("loginBtn");
+    const createFolderBtn = document.getElementById("createFolderBtn");
+    const uploadBtn = document.getElementById("uploadBtn");
+    const uploadProgress = document.getElementById("uploadProgress");
+    const uploadProgressBar = document.getElementById("uploadProgressBar");
+    const uploadPercent = document.getElementById("uploadPercent");
+
     function login() {
       const input = document.getElementById("passwordInput").value;
       if (input === password) {
-        document.querySelector(".login-section").style.display = "none";
-        document.querySelector(".dashboard").style.display = "block";
+        loginError.style.display = "none";
+        loginSection.style.display = "none";
+        dashboard.style.display = "block";
         loadFolders();
       } else {
-        document.getElementById("loginError").style.display = "block";
+        loginError.style.display = "block";
       }
     }
 
@@ -129,9 +252,13 @@
         alert("Please enter a folder name");
         return;
       }
-      db.ref("folders/" + folderName).set({ createdAt: Date.now() });
-      document.getElementById("folderName").value = "";
-      loadFolders();
+      createFolderBtn.disabled = true;
+      db.ref("folders/" + folderName).set({ createdAt: Date.now() })
+        .then(() => {
+          document.getElementById("folderName").value = "";
+          loadFolders();
+        })
+        .finally(() => createFolderBtn.disabled = false);
     }
 
     function loadFolders() {
@@ -166,8 +293,10 @@
     }
 
     function uploadFile() {
-      const file = document.getElementById("fileInput").files[0];
+      const fileInput = document.getElementById("fileInput");
+      const file = fileInput.files[0];
       const folder = document.getElementById("folderSelect").value;
+
       if (!file) {
         alert("Please select a file to upload");
         return;
@@ -177,20 +306,36 @@
         return;
       }
 
+      uploadBtn.disabled = true;
+      createFolderBtn.disabled = true;
+
       const storageRef = storage.ref(`${folder}/${file.name}`);
       const uploadTask = storageRef.put(file);
 
+      uploadProgress.style.display = "block";
+      uploadProgressBar.style.width = "0%";
+      uploadPercent.textContent = "0%";
+
       uploadTask.on('state_changed',
         (snapshot) => {
-          // Progress function (optional)
+          const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+          uploadProgressBar.style.width = progress + '%';
+          uploadPercent.textContent = Math.floor(progress) + '%';
         },
         (error) => {
           alert("Upload failed: " + error.message);
+          uploadProgress.style.display = "none";
+          uploadBtn.disabled = false;
+          createFolderBtn.disabled = false;
         },
         () => {
           alert("File uploaded successfully!");
+          uploadProgress.style.display = "none";
+          uploadPercent.textContent = "";
+          uploadBtn.disabled = false;
+          createFolderBtn.disabled = false;
+          fileInput.value = "";
           listFiles(folder);
-          document.getElementById("fileInput").value = "";
         }
       );
     }
@@ -213,16 +358,12 @@
             link.textContent = itemRef.name;
             link.target = "_blank";
             filesDiv.appendChild(link);
-            filesDiv.appendChild(document.createElement("br"));
           });
         });
       }).catch(() => {
         filesDiv.innerHTML = "<em>Error loading files.</em>";
       });
     }
-
-    // Show login form on page load
-    document.querySelector(".login-section").style.display = "block";
   </script>
 </body>
 </html>
