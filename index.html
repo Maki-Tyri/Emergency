@@ -3,20 +3,16 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Emergency Auto Recorder</title>
-</head>
-<body>
-  <h2>Set Emergency Contact</h2>
-  <input type="text" id="contactId" placeholder="Enter contact ID (e.g. user123)" />
-  <button onclick="saveContact()">Save Contact</button>
+  <title>Emergency App</title>
+  <style>
+    video { width: 100%; max-height: 300px; border: 2px solid red; }
+    body { font-family: sans-serif; padding: 1em; }
+  </style>
 
-  <h3 id="status">Waiting for contact...</h3>
-  <video id="preview" autoplay playsinline muted></video>
-
+  <!-- Firebase -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-app.js";
     import { getDatabase, ref, set } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-database.js";
-    import { getStorage, ref as sRef, uploadBytes } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-storage.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyCy9CKJ6CELheBhw7Gs0BgsE1E0FsoYdgU",
@@ -25,86 +21,81 @@
       storageBucket: "project-955237504610034331.appspot.com",
       messagingSenderId: "76212939677",
       appId: "1:76212939677:web:ef498bc1e4e480ab6e5d74",
-      measurementId: "G-WXBEP1LXTX"
+      measurementId: "G-WXBEP1LXTX",
+      databaseURL: "https://project-955237504610034331-default-rtdb.asia-southeast1.firebasedatabase.app"
     };
 
     const app = initializeApp(firebaseConfig);
     const db = getDatabase(app);
-    const storage = getStorage(app);
 
-    const video = document.getElementById('preview');
-    const statusEl = document.getElementById('status');
-    const contactInput = document.getElementById('contactId');
+    // You can customize this contact ID per user/session
+    const contactID = "emergency_contact_001";
 
-    let mediaRecorder;
+    // Auto start video + audio
+    const videoEl = document.createElement("video");
+    videoEl.autoplay = true;
+    videoEl.muted = true;
+    document.body.appendChild(videoEl);
+
+    let recorder;
     let chunks = [];
 
-    // Save contact to localStorage
-    window.saveContact = function() {
-      const contact = contactInput.value.trim();
-      if (contact) {
-        localStorage.setItem("emergency_contact", contact);
-        statusEl.textContent = "Contact saved. Starting emergency functions...";
-        startEmergencyFlow(contact);
-      }
+    navigator.mediaDevices.getUserMedia({ video: true, audio: true }).then(stream => {
+      videoEl.srcObject = stream;
+
+      // Auto record
+      recorder = new MediaRecorder(stream);
+      recorder.ondataavailable = e => chunks.push(e.data);
+      recorder.onstop = () => {
+        const blob = new Blob(chunks, { type: 'video/webm' });
+        // Uploading to Firebase Storage or save locally can be added here
+        console.log("Recording stopped, size:", blob.size);
+      };
+      recorder.start();
+
+      // Stop recording after 30 seconds
+      setTimeout(() => recorder.stop(), 30000);
+    });
+
+    // Location + Realtime DB + Email alert
+    function sendEmailAlert(lat, lng) {
+      const templateParams = {
+        contact_id: contactID,
+        latitude: lat,
+        longitude: lng,
+        map_link: `https://maps.google.com/?q=${lat},${lng}`
+      };
+
+      emailjs.send("service_y3dgack", "template_ii39kfq", templateParams)
+        .then(() => console.log("✅ Email alert sent"))
+        .catch(error => console.error("❌ Email send error:", error));
     }
 
-    // Send location to Firebase
-    function sendLocation(contact) {
-      if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition((pos) => {
-          const data = {
-            lat: pos.coords.latitude,
-            lng: pos.coords.longitude,
-            timestamp: Date.now()
-          };
-          const locRef = ref(db, `emergency_contacts/${contact}/location`);
-          set(locRef, data);
-        });
-      }
+    function updateLocation(lat, lng) {
+      const data = {
+        lat,
+        lng,
+        timestamp: Date.now()
+      };
+      set(ref(db, `emergency_contacts/${contactID}/location`), data);
+      sendEmailAlert(lat, lng);
     }
 
-    // Start camera/mic and recording
-    async function startEmergencyFlow(contact) {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-        video.srcObject = stream;
-
-        mediaRecorder = new MediaRecorder(stream);
-        mediaRecorder.ondataavailable = (e) => chunks.push(e.data);
-
-        mediaRecorder.onstop = async () => {
-          const blob = new Blob(chunks, { type: 'video/webm' });
-          const fileRef = sRef(storage, `emergency_contacts/${contact}/video_${Date.now()}.webm`);
-          await uploadBytes(fileRef, blob);
-          statusEl.textContent = "Recording uploaded to Firebase.";
-        };
-
-        mediaRecorder.start();
-        statusEl.textContent = "Recording started. Sending location...";
-
-        sendLocation(contact);
-
-        // Stop after 10 sec for demo
-        setTimeout(() => {
-          mediaRecorder.stop();
-        }, 10000);
-
-      } catch (e) {
-        console.error(e);
-        statusEl.textContent = "Error: " + e.message;
-      }
-    }
-
-    // Auto-start if contact already set
-    window.onload = () => {
-      const savedContact = localStorage.getItem("emergency_contact");
-      if (savedContact) {
-        contactInput.value = savedContact;
-        statusEl.textContent = "Contact found. Starting emergency functions...";
-        startEmergencyFlow(savedContact);
-      }
-    };
+    navigator.geolocation.getCurrentPosition(
+      pos => updateLocation(pos.coords.latitude, pos.coords.longitude),
+      err => console.error("Location error:", err),
+      { enableHighAccuracy: true }
+    );
   </script>
+
+  <!-- EmailJS SDK -->
+  <script src="https://cdn.jsdelivr.net/npm/emailjs-com@3/dist/email.min.js"></script>
+  <script>
+    emailjs.init("EfJgSHkCSxpwLzbGu"); // ✅ Your Public Key
+  </script>
+</head>
+<body>
+  <h1>🚨 Emergency Activated</h1>
+  <p>Camera, mic, location, and alert system running...</p>
 </body>
 </html>
