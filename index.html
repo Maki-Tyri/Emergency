@@ -8,11 +8,16 @@
     video { width: 100%; max-height: 300px; border: 2px solid red; }
     body { font-family: sans-serif; padding: 1em; }
   </style>
+</head>
+<body>
+  <h1>🚨 Emergency Activated</h1>
+  <p>Camera, mic, location, and SMS alert running...</p>
+  <video autoplay muted></video>
 
-  <!-- Firebase -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-app.js";
     import { getDatabase, ref, set } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-database.js";
+    import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-functions.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyCy9CKJ6CELheBhw7Gs0BgsE1E0FsoYdgU",
@@ -27,75 +32,53 @@
 
     const app = initializeApp(firebaseConfig);
     const db = getDatabase(app);
+    const functions = getFunctions(app);
 
-    // You can customize this contact ID per user/session
     const contactID = "emergency_contact_001";
+    const toPhone = "+639859396534"; // 📱 Replace with actual emergency contact
 
-    // Auto start video + audio
-    const videoEl = document.createElement("video");
-    videoEl.autoplay = true;
-    videoEl.muted = true;
-    document.body.appendChild(videoEl);
-
+    const videoEl = document.querySelector("video");
     let recorder;
     let chunks = [];
 
     navigator.mediaDevices.getUserMedia({ video: true, audio: true }).then(stream => {
       videoEl.srcObject = stream;
 
-      // Auto record
       recorder = new MediaRecorder(stream);
       recorder.ondataavailable = e => chunks.push(e.data);
       recorder.onstop = () => {
         const blob = new Blob(chunks, { type: 'video/webm' });
-        // Uploading to Firebase Storage or save locally can be added here
-        console.log("Recording stopped, size:", blob.size);
+        console.log("🎥 Recording complete:", blob.size);
+        // Upload video to Firebase Storage if needed
       };
       recorder.start();
 
-      // Stop recording after 30 seconds
-      setTimeout(() => recorder.stop(), 30000);
+      setTimeout(() => recorder.stop(), 30000); // Record 30s
     });
 
-    // Location + Realtime DB + Email alert
-    function sendEmailAlert(lat, lng) {
-      const templateParams = {
-        contact_id: contactID,
-        latitude: lat,
-        longitude: lng,
-        map_link: `https://maps.google.com/?q=${lat},${lng}`
-      };
-
-      emailjs.send("service_y3dgack", "template_ii39kfq", templateParams)
-        .then(() => console.log("✅ Email alert sent"))
-        .catch(error => console.error("❌ Email send error:", error));
+    function sendSMSAlert(lat, lng) {
+      const sendSMS = httpsCallable(functions, "sendEmergencySMS");
+      sendSMS({
+        contactID,
+        lat,
+        lng,
+        to: toPhone
+      })
+      .then(() => console.log("✅ SMS alert sent"))
+      .catch(err => console.error("❌ SMS send error:", err));
     }
 
     function updateLocation(lat, lng) {
-      const data = {
-        lat,
-        lng,
-        timestamp: Date.now()
-      };
+      const data = { lat, lng, timestamp: Date.now() };
       set(ref(db, `emergency_contacts/${contactID}/location`), data);
-      sendEmailAlert(lat, lng);
+      sendSMSAlert(lat, lng);
     }
 
     navigator.geolocation.getCurrentPosition(
       pos => updateLocation(pos.coords.latitude, pos.coords.longitude),
-      err => console.error("Location error:", err),
+      err => console.error("❌ Location error:", err),
       { enableHighAccuracy: true }
     );
   </script>
-
-  <!-- EmailJS SDK -->
-  <script src="https://cdn.jsdelivr.net/npm/emailjs-com@3/dist/email.min.js"></script>
-  <script>
-    emailjs.init("EfJgSHkCSxpwLzbGu"); // ✅ Your Public Key
-  </script>
-</head>
-<body>
-  <h1>🚨 Emergency Activated</h1>
-  <p>Camera, mic, location, and alert system running...</p>
 </body>
 </html>
