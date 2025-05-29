@@ -6,16 +6,18 @@
   <title>Emergency Auto Recorder</title>
 </head>
 <body>
-  <h1>Emergency Recording Started...</h1>
+  <h2>Set Emergency Contact</h2>
+  <input type="text" id="contactId" placeholder="Enter contact ID (e.g. user123)" />
+  <button onclick="saveContact()">Save Contact</button>
+
+  <h3 id="status">Waiting for contact...</h3>
   <video id="preview" autoplay playsinline muted></video>
 
-  <!-- Firebase SDKs -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-app.js";
-    import { getDatabase, ref, set, push } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-database.js";
+    import { getDatabase, ref, set } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-database.js";
     import { getStorage, ref as sRef, uploadBytes } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-storage.js";
 
-    // Firebase config
     const firebaseConfig = {
       apiKey: "AIzaSyCy9CKJ6CELheBhw7Gs0BgsE1E0FsoYdgU",
       authDomain: "project-955237504610034331.firebaseapp.com",
@@ -26,35 +28,44 @@
       measurementId: "G-WXBEP1LXTX"
     };
 
-    // Init Firebase
     const app = initializeApp(firebaseConfig);
     const db = getDatabase(app);
     const storage = getStorage(app);
 
     const video = document.getElementById('preview');
+    const statusEl = document.getElementById('status');
+    const contactInput = document.getElementById('contactId');
+
     let mediaRecorder;
     let chunks = [];
 
-    // Replace with your emergency contact path/key
-    const emergencyContactPath = 'emergency_contacts/user123';
+    // Save contact to localStorage
+    window.saveContact = function() {
+      const contact = contactInput.value.trim();
+      if (contact) {
+        localStorage.setItem("emergency_contact", contact);
+        statusEl.textContent = "Contact saved. Starting emergency functions...";
+        startEmergencyFlow(contact);
+      }
+    }
 
-    // Get user location
-    function sendLocation() {
+    // Send location to Firebase
+    function sendLocation(contact) {
       if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition((position) => {
-          const locationData = {
-            lat: position.coords.latitude,
-            lng: position.coords.longitude,
+        navigator.geolocation.getCurrentPosition((pos) => {
+          const data = {
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
             timestamp: Date.now()
           };
-          const locRef = ref(db, `${emergencyContactPath}/location`);
-          set(locRef, locationData);
+          const locRef = ref(db, `emergency_contacts/${contact}/location`);
+          set(locRef, data);
         });
       }
     }
 
-    // Start recording
-    async function startRecording() {
+    // Start camera/mic and recording
+    async function startEmergencyFlow(contact) {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
         video.srcObject = stream;
@@ -64,28 +75,36 @@
 
         mediaRecorder.onstop = async () => {
           const blob = new Blob(chunks, { type: 'video/webm' });
-          const fileRef = sRef(storage, `recordings/${Date.now()}.webm`);
+          const fileRef = sRef(storage, `emergency_contacts/${contact}/video_${Date.now()}.webm`);
           await uploadBytes(fileRef, blob);
-          console.log('Recording uploaded to Firebase Storage');
+          statusEl.textContent = "Recording uploaded to Firebase.";
         };
 
         mediaRecorder.start();
-        console.log('Recording started');
+        statusEl.textContent = "Recording started. Sending location...";
 
-        sendLocation();
+        sendLocation(contact);
 
-        // Stop recording after 10 seconds (demo purposes)
+        // Stop after 10 sec for demo
         setTimeout(() => {
           mediaRecorder.stop();
         }, 10000);
 
-      } catch (err) {
-        console.error('Error accessing media devices.', err);
+      } catch (e) {
+        console.error(e);
+        statusEl.textContent = "Error: " + e.message;
       }
     }
 
-    // Run on load
-    window.onload = startRecording;
+    // Auto-start if contact already set
+    window.onload = () => {
+      const savedContact = localStorage.getItem("emergency_contact");
+      if (savedContact) {
+        contactInput.value = savedContact;
+        statusEl.textContent = "Contact found. Starting emergency functions...";
+        startEmergencyFlow(savedContact);
+      }
+    };
   </script>
 </body>
 </html>
