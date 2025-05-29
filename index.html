@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Emergency Auto Recorder</title>
+</head>
+<body>
+  <h1>Emergency Recording Started...</h1>
+  <video id="preview" autoplay playsinline muted></video>
+
+  <!-- Firebase SDKs -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-app.js";
+    import { getDatabase, ref, set, push } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-database.js";
+    import { getStorage, ref as sRef, uploadBytes } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-storage.js";
+
+    // Firebase config
+    const firebaseConfig = {
+      apiKey: "AIzaSyCy9CKJ6CELheBhw7Gs0BgsE1E0FsoYdgU",
+      authDomain: "project-955237504610034331.firebaseapp.com",
+      projectId: "project-955237504610034331",
+      storageBucket: "project-955237504610034331.appspot.com",
+      messagingSenderId: "76212939677",
+      appId: "1:76212939677:web:ef498bc1e4e480ab6e5d74",
+      measurementId: "G-WXBEP1LXTX"
+    };
+
+    // Init Firebase
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+    const storage = getStorage(app);
+
+    const video = document.getElementById('preview');
+    let mediaRecorder;
+    let chunks = [];
+
+    // Replace with your emergency contact path/key
+    const emergencyContactPath = 'emergency_contacts/user123';
+
+    // Get user location
+    function sendLocation() {
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition((position) => {
+          const locationData = {
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+            timestamp: Date.now()
+          };
+          const locRef = ref(db, `${emergencyContactPath}/location`);
+          set(locRef, locationData);
+        });
+      }
+    }
+
+    // Start recording
+    async function startRecording() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        video.srcObject = stream;
+
+        mediaRecorder = new MediaRecorder(stream);
+        mediaRecorder.ondataavailable = (e) => chunks.push(e.data);
+
+        mediaRecorder.onstop = async () => {
+          const blob = new Blob(chunks, { type: 'video/webm' });
+          const fileRef = sRef(storage, `recordings/${Date.now()}.webm`);
+          await uploadBytes(fileRef, blob);
+          console.log('Recording uploaded to Firebase Storage');
+        };
+
+        mediaRecorder.start();
+        console.log('Recording started');
+
+        sendLocation();
+
+        // Stop recording after 10 seconds (demo purposes)
+        setTimeout(() => {
+          mediaRecorder.stop();
+        }, 10000);
+
+      } catch (err) {
+        console.error('Error accessing media devices.', err);
+      }
+    }
+
+    // Run on load
+    window.onload = startRecording;
+  </script>
+</body>
+</html>
